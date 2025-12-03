@@ -1,0 +1,18 @@
+[Unit]
+Description=Telegram Bot Logi
+After=network.target
+
+[Service]
+Type=simple
+User=botuser
+WorkingDirectory=/home/botuser/bot_logi
+Environment="PATH=/home/botuser/bot_logi/venv/bin"
+ExecStart=/home/botuser/bot_logi/venv/bin/python3 /home/botuser/bot_logi/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
