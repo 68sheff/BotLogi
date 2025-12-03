@@ -205,7 +205,11 @@ async def show_subcategories(callback: CallbackQuery):
         text = f"📂 {category.name}\n\n{category.description or ''}"
         
         if category.photo:
-            await callback.message.answer_photo(category.photo, caption=text, reply_markup=keyboard)
+            try:
+                await callback.message.answer_photo(category.photo, caption=text, reply_markup=keyboard)
+            except Exception:
+                # Если фото невалидно, отправляем без фото
+                await callback.message.answer(text, reply_markup=keyboard)
         else:
             await callback.message.answer(text, reply_markup=keyboard)
         await callback.answer()
@@ -228,7 +232,11 @@ async def show_items(callback: CallbackQuery):
         text = f"📋 {subcategory.name}\n\n{subcategory.description or ''}"
         
         if subcategory.photo:
-            await callback.message.answer_photo(subcategory.photo, caption=text, reply_markup=keyboard)
+            try:
+                await callback.message.answer_photo(subcategory.photo, caption=text, reply_markup=keyboard)
+            except Exception:
+                # Если фото невалидно, отправляем без фото
+                await callback.message.answer(text, reply_markup=keyboard)
         else:
             await callback.message.answer(text, reply_markup=keyboard)
         await callback.answer()
@@ -298,7 +306,11 @@ async def show_item(callback: CallbackQuery):
             ]])
         
         if item.photo:
-            await callback.message.answer_photo(item.photo, caption=text, reply_markup=keyboard)
+            try:
+                await callback.message.answer_photo(item.photo, caption=text, reply_markup=keyboard)
+            except Exception:
+                # Если фото невалидно, отправляем без фото
+                await callback.message.answer(text, reply_markup=keyboard)
         else:
             await callback.message.answer(text, reply_markup=keyboard)
         await callback.answer()
@@ -343,7 +355,11 @@ async def show_item_info(callback: CallbackQuery):
         ]])
         
         if item.photo:
-            await callback.message.answer_photo(item.photo, caption=text, reply_markup=keyboard)
+            try:
+                await callback.message.answer_photo(item.photo, caption=text, reply_markup=keyboard)
+            except Exception:
+                # Если фото невалидно, отправляем без фото
+                await callback.message.answer(text, reply_markup=keyboard)
         else:
             await callback.message.answer(text, reply_markup=keyboard)
         await callback.answer()
@@ -865,7 +881,11 @@ async def show_faq(message: Message):
     try:
         faq_text, faq_photo = utils.get_bot_response_with_media(db, "faq", config.TEXTS["faq"])
         if faq_photo:
-            await message.answer_photo(faq_photo, caption=faq_text)
+            try:
+                await message.answer_photo(faq_photo, caption=faq_text)
+            except Exception:
+                # Если фото невалидно, отправляем без фото
+                await message.answer(faq_text)
         else:
             await message.answer(faq_text)
     finally:
@@ -879,7 +899,11 @@ async def show_support(message: Message):
     try:
         support_text, support_photo = utils.get_bot_response_with_media(db, "support", config.TEXTS["support"])
         if support_photo:
-            await message.answer_photo(support_photo, caption=support_text)
+            try:
+                await message.answer_photo(support_photo, caption=support_text)
+            except Exception:
+                # Если фото невалидно, отправляем без фото
+                await message.answer(support_text)
         else:
             await message.answer(support_text)
     finally:
@@ -893,7 +917,11 @@ async def show_user_agreement(message: Message):
     try:
         agreement_text, agreement_photo = utils.get_bot_response_with_media(db, "user_agreement", config.TEXTS["user_agreement"])
         if agreement_photo:
-            await message.answer_photo(agreement_photo, caption=agreement_text)
+            try:
+                await message.answer_photo(agreement_photo, caption=agreement_text)
+            except Exception:
+                # Если фото невалидно, отправляем без фото
+                await message.answer(agreement_text)
         else:
             await message.answer(agreement_text)
     finally:
@@ -948,7 +976,11 @@ async def handle_custom_button(message: Message):
                 response_text, response_photo = utils.get_bot_response_with_media(db, response_key, f"Ответ для кнопки '{button.name}'")
                 
                 if response_photo:
-                    await message.answer_photo(response_photo, caption=response_text)
+                    try:
+                        await message.answer_photo(response_photo, caption=response_text)
+                    except Exception:
+                        # Если фото невалидно, отправляем без фото
+                        await message.answer(response_text)
                 else:
                     await message.answer(response_text)
     finally:
@@ -1033,7 +1065,11 @@ async def back_to_main(callback: CallbackQuery):
         keyboard = kb.get_main_keyboard(db, callback.from_user.id)
         start_text, start_photo = utils.get_bot_response_with_media(db, "start", config.TEXTS["start"])
         if start_photo:
-            await callback.message.answer_photo(start_photo, caption=start_text, reply_markup=keyboard)
+            try:
+                await callback.message.answer_photo(start_photo, caption=start_text, reply_markup=keyboard)
+            except Exception:
+                # Если фото невалидно, отправляем без фото
+                await callback.message.answer(start_text, reply_markup=keyboard)
         else:
             await callback.message.answer(start_text, reply_markup=keyboard)
         await callback.answer()
@@ -1073,7 +1109,11 @@ async def back_to_category(callback: CallbackQuery):
         text = f"📂 {category.name}\n\n{category.description or ''}"
         
         if category.photo:
-            await callback.message.answer_photo(category.photo, caption=text, reply_markup=keyboard)
+            try:
+                await callback.message.answer_photo(category.photo, caption=text, reply_markup=keyboard)
+            except Exception:
+                # Если фото невалидно, отправляем без фото
+                await callback.message.answer(text, reply_markup=keyboard)
         else:
             await callback.message.answer(text, reply_markup=keyboard)
         await callback.answer()
@@ -1101,7 +1141,11 @@ async def back_to_subcategory(callback: CallbackQuery):
         text = f"📋 {subcategory.name}\n\n{subcategory.description or ''}"
         
         if subcategory.photo:
-            await callback.message.answer_photo(subcategory.photo, caption=text, reply_markup=keyboard)
+            try:
+                await callback.message.answer_photo(subcategory.photo, caption=text, reply_markup=keyboard)
+            except Exception:
+                # Если фото невалидно, отправляем без фото
+                await callback.message.answer(text, reply_markup=keyboard)
         else:
             await callback.message.answer(text, reply_markup=keyboard)
         await callback.answer()
