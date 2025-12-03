@@ -980,13 +980,27 @@ async def save_item_name(message: Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
     
+    # Обработка отмены
+    if message.text and message.text.lower() in ['/cancel', 'отмена', 'cancel']:
+        await state.clear()
+        await message.answer("❌ Создание позиции отменено")
+        return
+    
     data = await state.get_data()
     subcategory_id = data.get("subcategory_id")
     product_type = data.get("product_type")
     
+    if not message.text or not message.text.strip():
+        await message.answer("❌ Название не может быть пустым. Введите название позиции:")
+        return
+    
     await state.set_state(AdminStates.editing_item_price)
-    await state.update_data(item_name=message.text, subcategory_id=subcategory_id, product_type=product_type)
-    await message.answer("Введите цену товара (число, например: 10.5):")
+    await state.update_data(
+        item_name=message.text.strip(),
+        subcategory_id=subcategory_id,
+        product_type=product_type
+    )
+    await message.answer("Введите цену товара (число, например: 10.5):\n\n💡 Для отмены отправьте /cancel")
 
 
 @router.message(AdminStates.editing_item_description, F.photo)
@@ -1069,8 +1083,14 @@ async def save_item_description(message: Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
     
+    # Обработка отмены
+    if message.text and message.text.lower() in ['/cancel', 'отмена', 'cancel']:
+        await state.clear()
+        await message.answer("❌ Создание позиции отменено")
+        return
+    
     if not message.text or not message.text.strip():
-        await message.answer("Описание обязательно! Введите описание:")
+        await message.answer("❌ Описание обязательно! Введите описание:\n\n💡 Для отмены отправьте /cancel")
         return
     
     data = await state.get_data()
@@ -1101,6 +1121,13 @@ async def save_item_description(message: Message, state: FSMContext):
         product_type = data.get("product_type")
         item_name = data.get("item_name")
         price = data.get("item_price")
+        
+        # Проверка наличия всех необходимых данных
+        if not subcategory_id or not product_type or not item_name or price is None:
+            await message.answer("❌ Ошибка: не все данные сохранены. Начните создание позиции заново.")
+            await state.clear()
+            db.close()
+            return
         
         max_pos = db.query(Item).filter(Item.subcategory_id == subcategory_id).count()
         
@@ -1319,6 +1346,12 @@ async def save_item_price(message: Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
     
+    # Обработка отмены
+    if message.text and message.text.lower() in ['/cancel', 'отмена', 'cancel']:
+        await state.clear()
+        await message.answer("❌ Создание позиции отменено")
+        return
+    
     # Проверяем, что это не команда или кнопка
     if not message.text or message.text.startswith('/'):
         return
@@ -1356,9 +1389,16 @@ async def save_item_price(message: Message, state: FSMContext):
             db.close()
     else:
         # Создание новой позиции - запрос описания
+        # Сохраняем все предыдущие данные
         await state.set_state(AdminStates.editing_item_description)
-        await state.update_data(item_price=price, editing_existing=False)
-        await message.answer("Введите описание товара (обязательно):")
+        await state.update_data(
+            item_price=price,
+            editing_existing=False,
+            subcategory_id=data.get("subcategory_id"),
+            product_type=data.get("product_type"),
+            item_name=data.get("item_name")
+        )
+        await message.answer("Введите описание товара (обязательно):\n\n💡 Для отмены отправьте /cancel")
 
 
 @router.callback_query(F.data.startswith("admin_item_edit_photo_"))
