@@ -172,9 +172,12 @@ async def cmd_start(message: Message, state: FSMContext):
             message.from_user.last_name
         )
         
-        start_text = utils.get_bot_response(db, "start", config.TEXTS["start"])
+        start_text, start_photo = utils.get_bot_response_with_media(db, "start", config.TEXTS["start"])
         keyboard = kb.get_main_keyboard(db, message.from_user.id)
-        await message.answer(start_text, reply_markup=keyboard)
+        if start_photo:
+            await message.answer_photo(start_photo, caption=start_text, reply_markup=keyboard)
+        else:
+            await message.answer(start_text, reply_markup=keyboard)
     finally:
         db.close()
 
