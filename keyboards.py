@@ -50,6 +50,7 @@ def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
         ("📋 Соглашение", "admin_agreement"),
         ("🎟 Промокоды", "admin_promocodes"),
         ("🔔 Уведомления", "admin_notifications"),
+        ("📦 Скрытие товаров", "admin_hide_out_of_stock"),
     ]
     
     for text, callback_data in buttons:
@@ -95,7 +96,7 @@ def get_subcategories_keyboard(db: Session, category_id: int) -> InlineKeyboardM
     return builder.as_markup()
 
 
-def get_items_keyboard(db: Session, subcategory_id: int) -> InlineKeyboardMarkup:
+def get_items_keyboard(db: Session, subcategory_id: int, hide_out_of_stock: bool = False) -> InlineKeyboardMarkup:
     """Клавиатура позиций"""
     subcategory = db.query(Subcategory).filter(Subcategory.id == subcategory_id).first()
     category_id = subcategory.category_id if subcategory else None
@@ -120,6 +121,9 @@ def get_items_keyboard(db: Session, subcategory_id: int) -> InlineKeyboardMarkup
         button_text = f"{item.name} | {price_part} | {qty_part}"
         
         if available_count == 0:
+            # Глобальная настройка скрытия товаров без наличия
+            if hide_out_of_stock:
+                continue
             if item.out_of_stock_behavior == 'hide':
                 continue
             elif item.out_of_stock_behavior == 'show_no_button':

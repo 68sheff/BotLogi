@@ -212,7 +212,7 @@ async def show_responses_menu(callback: CallbackQuery):
         text = "💬 Управление ответами бота:\n\n"
         
         builder = InlineKeyboardBuilder()
-        response_keys = ["start", "faq", "support", "user_agreement", "purchase_success", 
+        response_keys = ["start", "buy", "profile", "faq", "support", "user_agreement", "purchase_success", 
                         "product_out_of_stock", "maintenance", "block_appeal"]
         
         # Добавляем стандартные ответы
@@ -2768,6 +2768,27 @@ async def show_agreement_menu(callback: CallbackQuery):
         builder.adjust(1)
         
         await callback.message.answer(text, reply_markup=builder.as_markup())
+        await callback.answer()
+    finally:
+        db.close()
+
+
+# ========== СКРЫТИЕ ТОВАРОВ БЕЗ НАЛИЧИЯ ==========
+
+@router.callback_query(F.data == "admin_hide_out_of_stock")
+async def toggle_hide_out_of_stock(callback: CallbackQuery):
+    """Включить/выключить скрытие товаров без наличия"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    db = next(get_db())
+    try:
+        current = utils.get_setting(db, "hide_out_of_stock", False)
+        utils.set_setting(db, "hide_out_of_stock", not current)
+        
+        status = "включено" if not current else "выключено"
+        await callback.message.answer(f"✅ Скрытие товаров без наличия {status}")
         await callback.answer()
     finally:
         db.close()

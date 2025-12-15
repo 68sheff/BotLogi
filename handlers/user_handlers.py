@@ -188,7 +188,11 @@ async def show_categories(message: Message):
     db = next(get_db())
     try:
         keyboard = kb.get_categories_keyboard(db)
-        await message.answer("📦 Выберите категорию:", reply_markup=keyboard)
+        buy_text, buy_photo = utils.get_bot_response_with_media(db, "buy", "📦 Выберите категорию:")
+        if buy_photo:
+            await message.answer_photo(buy_photo, caption=buy_text, reply_markup=keyboard)
+        else:
+            await message.answer(buy_text, reply_markup=keyboard)
     finally:
         db.close()
 
@@ -231,7 +235,8 @@ async def show_items(callback: CallbackQuery):
             await callback.answer("Подкатегория не найдена")
             return
         
-        keyboard = kb.get_items_keyboard(db, subcategory_id)
+        hide_out_of_stock = utils.get_setting(db, "hide_out_of_stock", False)
+        keyboard = kb.get_items_keyboard(db, subcategory_id, hide_out_of_stock)
         text = f"📋 {subcategory.name}\n\n{subcategory.description or ''}"
         
         if subcategory.photo:
@@ -630,7 +635,11 @@ async def show_profile(message: Message):
         
         text = utils.format_user_info(user)
         keyboard = kb.get_profile_keyboard()
-        await message.answer(text, reply_markup=keyboard)
+        _, profile_photo = utils.get_bot_response_with_media(db, "profile", "")
+        if profile_photo:
+            await message.answer_photo(profile_photo, caption=text, reply_markup=keyboard)
+        else:
+            await message.answer(text, reply_markup=keyboard)
     finally:
         db.close()
 
@@ -1140,7 +1149,8 @@ async def back_to_subcategory(callback: CallbackQuery):
             await callback.answer("Подкатегория не найдена")
             return
         
-        keyboard = kb.get_items_keyboard(db, subcategory_id)
+        hide_out_of_stock = utils.get_setting(db, "hide_out_of_stock", False)
+        keyboard = kb.get_items_keyboard(db, subcategory_id, hide_out_of_stock)
         text = f"📋 {subcategory.name}\n\n{subcategory.description or ''}"
         
         if subcategory.photo:
