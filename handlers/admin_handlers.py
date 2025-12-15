@@ -2421,6 +2421,329 @@ async def save_channel_id(message: Message, state: FSMContext):
         await state.clear()
 
 
+# ========== УДАЛЕНИЕ КАТЕГОРИЙ/ПОДКАТЕГОРИЙ/ПОЗИЦИЙ ==========
+
+@router.callback_query(F.data == "admin_delete_category")
+async def delete_category_menu(callback: CallbackQuery):
+    """Меню удаления категории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    db = next(get_db())
+    try:
+        categories = db.query(Category).all()
+        if not categories:
+            await callback.message.answer("Нет категорий для удаления")
+            await callback.answer()
+            return
+        
+        builder = InlineKeyboardBuilder()
+        for category in categories:
+            builder.add(InlineKeyboardButton(
+                text=f"🗑 {category.name}",
+                callback_data=f"admin_del_cat_{category.id}"
+            ))
+        
+        builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_catalog"))
+        builder.adjust(1)
+        
+        await callback.message.answer("Выберите категорию для удаления:", reply_markup=builder.as_markup())
+        await callback.answer()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_del_cat_"))
+async def confirm_delete_category(callback: CallbackQuery):
+    """Подтверждение удаления категории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    category_id = int(callback.data.split("_")[3])
+    db = next(get_db())
+    try:
+        category = db.query(Category).filter(Category.id == category_id).first()
+        if not category:
+            await callback.answer("Категория не найдена")
+            return
+        
+        # Считаем связанные объекты
+        subcats_count = db.query(Subcategory).filter(Subcategory.category_id == category_id).count()
+        
+        builder = InlineKeyboardBuilder()
+        builder.add(InlineKeyboardButton(
+            text="✅ Да, удалить",
+            callback_data=f"admin_confirm_del_cat_{category_id}"
+        ))
+        builder.add(InlineKeyboardButton(text="❌ Отмена", callback_data="admin_delete_category"))
+        builder.adjust(1)
+        
+        text = f"⚠️ Удалить категорию '{category.name}'?\n\n"
+        if subcats_count > 0:
+            text += f"Внимание: будут удалены {subcats_count} подкатегорий и все связанные позиции!"
+        
+        await callback.message.answer(text, reply_markup=builder.as_markup())
+        await callback.answer()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_confirm_del_cat_"))
+async def execute_delete_category(callback: CallbackQuery):
+    """Удаление категории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    category_id = int(callback.data.split("_")[4])
+    db = next(get_db())
+    try:
+        category = db.query(Category).filter(Category.id == category_id).first()
+        if not category:
+            await callback.answer("Категория не найдена")
+            return
+        
+        category_name = category.name
+        
+        # Удаляем связанные подкатегории и позиции
+        subcategories = db.query(Subcategory).filter(Subcategory.category_id == category_id).all()
+        for subcat in subcategories:
+            # Удаляем позиции подкатегории
+            db.query(Item).filter(Item.subcategory_id == subcat.id).delete()
+        
+        # Удаляем подкатегории
+        db.query(Subcategory).filter(Subcategory.category_id == category_id).delete()
+        
+        # Удаляем категорию
+        db.delete(category)
+        db.commit()
+        
+        utils.log_action(db, "admin_action", admin_id=callback.from_user.id, data={
+            "action": "delete_category",
+            "category_id": category_id,
+            "category_name": category_name
+        })
+        
+        await callback.message.answer(f"✅ Категория '{category_name}' удалена!")
+        await callback.answer()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data == "admin_delete_subcategory")
+async def delete_subcategory_menu(callback: CallbackQuery):
+    """Меню удаления подкатегории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    db = next(get_db())
+    try:
+        subcategories = db.query(Subcategory).all()
+        if not subcategories:
+            await callback.message.answer("Нет подкатегорий для удаления")
+            await callback.answer()
+            return
+        
+        builder = InlineKeyboardBuilder()
+        for subcat in subcategories:
+            category = subcat.category
+            text = f"🗑 {category.name} > {subcat.name}" if category else f"🗑 {subcat.name}"
+            builder.add(InlineKeyboardButton(
+                text=text,
+                callback_data=f"admin_del_subcat_{subcat.id}"
+            ))
+        
+        builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_catalog"))
+        builder.adjust(1)
+        
+        await callback.message.answer("Выберите подкатегорию для удаления:", reply_markup=builder.as_markup())
+        await callback.answer()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_del_subcat_"))
+async def confirm_delete_subcategory(callback: CallbackQuery):
+    """Подтверждение удаления подкатегории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    subcat_id = int(callback.data.split("_")[3])
+    db = next(get_db())
+    try:
+        subcat = db.query(Subcategory).filter(Subcategory.id == subcat_id).first()
+        if not subcat:
+            await callback.answer("Подкатегория не найдена")
+            return
+        
+        items_count = db.query(Item).filter(Item.subcategory_id == subcat_id).count()
+        
+        builder = InlineKeyboardBuilder()
+        builder.add(InlineKeyboardButton(
+            text="✅ Да, удалить",
+            callback_data=f"admin_confirm_del_subcat_{subcat_id}"
+        ))
+        builder.add(InlineKeyboardButton(text="❌ Отмена", callback_data="admin_delete_subcategory"))
+        builder.adjust(1)
+        
+        text = f"⚠️ Удалить подкатегорию '{subcat.name}'?\n\n"
+        if items_count > 0:
+            text += f"Внимание: будут удалены {items_count} позиций!"
+        
+        await callback.message.answer(text, reply_markup=builder.as_markup())
+        await callback.answer()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_confirm_del_subcat_"))
+async def execute_delete_subcategory(callback: CallbackQuery):
+    """Удаление подкатегории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    subcat_id = int(callback.data.split("_")[4])
+    db = next(get_db())
+    try:
+        subcat = db.query(Subcategory).filter(Subcategory.id == subcat_id).first()
+        if not subcat:
+            await callback.answer("Подкатегория не найдена")
+            return
+        
+        subcat_name = subcat.name
+        
+        # Удаляем позиции
+        db.query(Item).filter(Item.subcategory_id == subcat_id).delete()
+        
+        # Удаляем подкатегорию
+        db.delete(subcat)
+        db.commit()
+        
+        utils.log_action(db, "admin_action", admin_id=callback.from_user.id, data={
+            "action": "delete_subcategory",
+            "subcategory_id": subcat_id,
+            "subcategory_name": subcat_name
+        })
+        
+        await callback.message.answer(f"✅ Подкатегория '{subcat_name}' удалена!")
+        await callback.answer()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data == "admin_delete_item")
+async def delete_item_menu(callback: CallbackQuery):
+    """Меню удаления позиции"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    db = next(get_db())
+    try:
+        items = db.query(Item).all()
+        if not items:
+            await callback.message.answer("Нет позиций для удаления")
+            await callback.answer()
+            return
+        
+        builder = InlineKeyboardBuilder()
+        for item in items:
+            subcat = item.subcategory
+            category = subcat.category if subcat else None
+            if category and subcat:
+                text = f"🗑 {category.name} > {subcat.name} > {item.name}"
+            else:
+                text = f"🗑 {item.name}"
+            builder.add(InlineKeyboardButton(
+                text=text,
+                callback_data=f"admin_del_item_{item.id}"
+            ))
+        
+        builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_catalog"))
+        builder.adjust(1)
+        
+        await callback.message.answer("Выберите позицию для удаления:", reply_markup=builder.as_markup())
+        await callback.answer()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_del_item_"))
+async def confirm_delete_item(callback: CallbackQuery):
+    """Подтверждение удаления позиции"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    item_id = int(callback.data.split("_")[3])
+    db = next(get_db())
+    try:
+        item = db.query(Item).filter(Item.id == item_id).first()
+        if not item:
+            await callback.answer("Позиция не найдена")
+            return
+        
+        products_count = db.query(Product).filter(Product.item_id == item_id).count()
+        
+        builder = InlineKeyboardBuilder()
+        builder.add(InlineKeyboardButton(
+            text="✅ Да, удалить",
+            callback_data=f"admin_confirm_del_item_{item_id}"
+        ))
+        builder.add(InlineKeyboardButton(text="❌ Отмена", callback_data="admin_delete_item"))
+        builder.adjust(1)
+        
+        text = f"⚠️ Удалить позицию '{item.name}'?\n\n"
+        if products_count > 0:
+            text += f"Внимание: будут удалены {products_count} товаров!"
+        
+        await callback.message.answer(text, reply_markup=builder.as_markup())
+        await callback.answer()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_confirm_del_item_"))
+async def execute_delete_item(callback: CallbackQuery):
+    """Удаление позиции"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    item_id = int(callback.data.split("_")[4])
+    db = next(get_db())
+    try:
+        item = db.query(Item).filter(Item.id == item_id).first()
+        if not item:
+            await callback.answer("Позиция не найдена")
+            return
+        
+        item_name = item.name
+        
+        # Удаляем товары
+        db.query(Product).filter(Product.item_id == item_id).delete()
+        
+        # Удаляем позицию
+        db.delete(item)
+        db.commit()
+        
+        utils.log_action(db, "admin_action", admin_id=callback.from_user.id, data={
+            "action": "delete_item",
+            "item_id": item_id,
+            "item_name": item_name
+        })
+        
+        await callback.message.answer(f"✅ Позиция '{item_name}' удалена!")
+        await callback.answer()
+    finally:
+        db.close()
+
+
 # ========== НАВИГАЦИЯ ==========
 
 # ========== ПОЛЬЗОВАТЕЛЬСКОЕ СОГЛАШЕНИЕ ==========
