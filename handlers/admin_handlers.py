@@ -215,14 +215,12 @@ async def show_responses_menu(callback: CallbackQuery):
         response_keys = ["start", "buy", "profile", "faq", "support", "user_agreement", "purchase_success", 
                         "product_out_of_stock", "maintenance", "block_appeal"]
         
-        # Добавляем стандартные ответы
+        # Добавляем стандартные ответы (показываем все, даже если записи нет в БД)
         for key in response_keys:
-            response = db.query(BotResponse).filter(BotResponse.key == key).first()
-            if response:
-                builder.add(InlineKeyboardButton(
-                    text=f"✏️ {key}",
-                    callback_data=f"admin_edit_response_{key}"
-                ))
+            builder.add(InlineKeyboardButton(
+                text=f"✏️ {key}",
+                callback_data=f"admin_edit_response_{key}"
+            ))
         
         # Добавляем ответы для кастомных кнопок
         custom_responses = db.query(BotResponse).filter(BotResponse.key.like("button_%")).all()
