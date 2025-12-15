@@ -910,14 +910,19 @@ async def show_support(message: Message):
     db = next(get_db())
     try:
         support_text, support_photo = utils.get_bot_response_with_media(db, "support", config.TEXTS["support"])
+        
+        # Inline кнопка для перехода в поддержку
+        support_keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="💬 Поддержка", url="https://t.me/Socks7")
+        ]])
+        
         if support_photo:
             try:
-                await message.answer_photo(support_photo, caption=support_text)
+                await message.answer_photo(support_photo, caption=support_text, reply_markup=support_keyboard)
             except Exception:
-                # Если фото невалидно, отправляем без фото
-                await message.answer(support_text)
+                await message.answer(support_text, reply_markup=support_keyboard)
         else:
-            await message.answer(support_text)
+            await message.answer(support_text, reply_markup=support_keyboard)
     finally:
         db.close()
 
