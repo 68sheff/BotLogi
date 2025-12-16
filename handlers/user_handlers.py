@@ -208,6 +208,12 @@ async def show_subcategories(callback: CallbackQuery):
             await callback.answer("Категория не найдена")
             return
         
+        # Удаляем предыдущее сообщение
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        
         keyboard = kb.get_subcategories_keyboard(db, category_id)
         text = f"📂 {category.name}\n\n{category.description or ''}"
         
@@ -215,7 +221,6 @@ async def show_subcategories(callback: CallbackQuery):
             try:
                 await callback.message.answer_photo(category.photo, caption=text, reply_markup=keyboard)
             except Exception:
-                # Если фото невалидно, отправляем без фото
                 await callback.message.answer(text, reply_markup=keyboard)
         else:
             await callback.message.answer(text, reply_markup=keyboard)
@@ -235,6 +240,12 @@ async def show_items(callback: CallbackQuery):
             await callback.answer("Подкатегория не найдена")
             return
         
+        # Удаляем предыдущее сообщение
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        
         hide_out_of_stock = utils.get_setting(db, "hide_out_of_stock", False)
         keyboard = kb.get_items_keyboard(db, subcategory_id, hide_out_of_stock)
         text = f"📋 {subcategory.name}\n\n{subcategory.description or ''}"
@@ -243,7 +254,6 @@ async def show_items(callback: CallbackQuery):
             try:
                 await callback.message.answer_photo(subcategory.photo, caption=text, reply_markup=keyboard)
             except Exception:
-                # Если фото невалидно, отправляем без фото
                 await callback.message.answer(text, reply_markup=keyboard)
         else:
             await callback.message.answer(text, reply_markup=keyboard)
@@ -262,6 +272,12 @@ async def show_item(callback: CallbackQuery):
         if not item:
             await callback.answer("Товар не найден")
             return
+        
+        # Удаляем предыдущее сообщение
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
         
         user = get_or_create_user(
             db,
@@ -1097,10 +1113,20 @@ async def back_to_main(callback: CallbackQuery):
 @router.callback_query(F.data == "back_to_categories")
 async def back_to_categories(callback: CallbackQuery):
     """Вернуться к категориям"""
+    # Удаляем предыдущее сообщение
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    
     db = next(get_db())
     try:
         keyboard = kb.get_categories_keyboard(db)
-        await callback.message.answer("📦 Выберите категорию:", reply_markup=keyboard)
+        buy_text, buy_photo = utils.get_bot_response_with_media(db, "buy", "📦 Выберите категорию:")
+        if buy_photo:
+            await callback.message.answer_photo(buy_photo, caption=buy_text, reply_markup=keyboard)
+        else:
+            await callback.message.answer(buy_text, reply_markup=keyboard)
         await callback.answer()
     finally:
         db.close()
@@ -1114,6 +1140,12 @@ async def back_to_category(callback: CallbackQuery):
     except (ValueError, IndexError):
         await callback.answer("Ошибка навигации")
         return
+    
+    # Удаляем предыдущее сообщение
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
     
     db = next(get_db())
     try:
@@ -1129,7 +1161,6 @@ async def back_to_category(callback: CallbackQuery):
             try:
                 await callback.message.answer_photo(category.photo, caption=text, reply_markup=keyboard)
             except Exception:
-                # Если фото невалидно, отправляем без фото
                 await callback.message.answer(text, reply_markup=keyboard)
         else:
             await callback.message.answer(text, reply_markup=keyboard)
@@ -1147,6 +1178,12 @@ async def back_to_subcategory(callback: CallbackQuery):
         await callback.answer("Ошибка навигации")
         return
     
+    # Удаляем предыдущее сообщение
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    
     db = next(get_db())
     try:
         subcategory = db.query(Subcategory).filter(Subcategory.id == subcategory_id).first()
@@ -1162,7 +1199,6 @@ async def back_to_subcategory(callback: CallbackQuery):
             try:
                 await callback.message.answer_photo(subcategory.photo, caption=text, reply_markup=keyboard)
             except Exception:
-                # Если фото невалидно, отправляем без фото
                 await callback.message.answer(text, reply_markup=keyboard)
         else:
             await callback.message.answer(text, reply_markup=keyboard)
