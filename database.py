@@ -75,7 +75,8 @@ class Item(Base):
     __tablename__ = 'items'
     
     id = Column(Integer, primary_key=True)
-    subcategory_id = Column(Integer, ForeignKey('subcategories.id'), nullable=False)
+    subcategory_id = Column(Integer, ForeignKey('subcategories.id'), nullable=True)
+    category_id = Column(Integer, ForeignKey('categories.id'), nullable=True)
     name = Column(String(255), nullable=False)
     description = Column(Text)
     price = Column(Float, nullable=False)
@@ -88,6 +89,7 @@ class Item(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
     subcategory = relationship("Subcategory", back_populates="items")
+    category = relationship("Category", backref="items")
     products = relationship("Product", back_populates="item")
     purchases = relationship("Purchase", back_populates="item")
 
@@ -242,6 +244,14 @@ def init_db():
             db.execute(sql_text("ALTER TABLE users ADD COLUMN block_reason TEXT"))
             db.commit()
             print("Миграция: добавлена колонка block_reason в users")
+        
+        # Миграция: добавляем колонку category_id в items если её нет
+        result = db.execute(sql_text("PRAGMA table_info(items)"))
+        columns = [row[1] for row in result]
+        if 'category_id' not in columns:
+            db.execute(sql_text("ALTER TABLE items ADD COLUMN category_id INTEGER REFERENCES categories(id)"))
+            db.commit()
+            print("Миграция: добавлена колонка category_id в items")
     except Exception as e:
         print(f"Ошибка при миграции: {e}")
         db.rollback()

@@ -76,19 +76,55 @@ def get_categories_keyboard(db: Session) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_subcategories_keyboard(db: Session, category_id: int) -> InlineKeyboardMarkup:
-    """Клавиатура подкатегорий"""
+def get_subcategories_keyboard(db: Session, category_id: int, hide_out_of_stock: bool = False) -> InlineKeyboardMarkup:
+    """Клавиатура подкатегорий и позиций напрямую в категории"""
     subcategories = db.query(Subcategory).filter(
         Subcategory.category_id == category_id,
         Subcategory.is_visible == True
     ).order_by(Subcategory.position).all()
     
+    # Позиции напрямую в категории (без подкатегории)
+    direct_items = db.query(Item).filter(
+        Item.category_id == category_id,
+        Item.subcategory_id == None,
+        Item.is_visible == True
+    ).order_by(Item.position).all()
+    
     builder = InlineKeyboardBuilder()
     
+    # Сначала подкатегории
     for subcategory in subcategories:
         builder.add(InlineKeyboardButton(
-            text=subcategory.name,
+            text=f"📁 {subcategory.name}",
             callback_data=f"subcategory_{subcategory.id}"
+        ))
+    
+    # Затем позиции напрямую в категории
+    for item in direct_items:
+        available_count = db.query(Product).filter(
+            Product.item_id == item.id,
+            Product.is_sold == False
+        ).count()
+        
+        price_part = f"{item.price:.2f}$"
+        qty_part = f"{available_count} шт"
+        button_text = f"{item.name} | {price_part} | {qty_part}"
+        
+        if available_count == 0:
+            if hide_out_of_stock:
+                continue
+            if item.out_of_stock_behavior == 'hide':
+                continue
+            elif item.out_of_stock_behavior == 'show_no_button':
+                builder.add(InlineKeyboardButton(
+                    text=button_text,
+                    callback_data=f"item_info_{item.id}"
+                ))
+                continue
+        
+        builder.add(InlineKeyboardButton(
+            text=button_text,
+            callback_data=f"item_{item.id}"
         ))
     
     builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_categories"))
@@ -173,9 +209,11 @@ def get_item_keyboard(db: Session, item_id: int, user_balance: float) -> InlineK
             # Для файловых товаров - одна кнопка
             builder.add(InlineKeyboardButton(text="Купить", callback_data=f"buy_{item_id}_1"))
     
-    # Получаем subcategory_id для кнопки назад
-    subcategory_id = item.subcategory_id
-    builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data=f"back_to_subcategory_{subcategory_id}"))
+    # Кнопка назад - в подкатегорию или категорию
+    if item.subcategory_id:
+        builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data=f"back_to_subcategory_{item.subcategory_id}"))
+    else:
+        builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data=f"category_{item.category_id}"))
     builder.adjust(2)
     return builder.as_markup()
 

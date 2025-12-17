@@ -914,27 +914,55 @@ async def create_item(callback: CallbackQuery, state: FSMContext):
     
     db = next(get_db())
     try:
-        subcategories = db.query(Subcategory).all()
-        if not subcategories:
-            await callback.message.answer("Сначала создайте подкатегории")
+        categories = db.query(Category).all()
+        if not categories:
+            await callback.message.answer("Сначала создайте категории")
             await callback.answer()
             return
         
         builder = InlineKeyboardBuilder()
+        
+        # Добавляем категории (для позиций без подкатегории)
+        for category in categories:
+            builder.add(InlineKeyboardButton(
+                text=f"📁 {category.name}",
+                callback_data=f"admin_create_item_cat_{category.id}"
+            ))
+        
+        # Добавляем подкатегории
+        subcategories = db.query(Subcategory).all()
         for subcategory in subcategories:
             category = subcategory.category
             builder.add(InlineKeyboardButton(
-                text=f"{category.name} > {subcategory.name}",
+                text=f"  └ {category.name} > {subcategory.name}",
                 callback_data=f"admin_create_item_subcat_{subcategory.id}"
             ))
         
         builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_catalog"))
         builder.adjust(1)
         
-        await callback.message.answer("Выберите подкатегорию для позиции:", reply_markup=builder.as_markup())
+        await callback.message.answer("Выберите куда добавить позицию:\n\n📁 - напрямую в категорию\n└ - в подкатегорию", reply_markup=builder.as_markup())
         await callback.answer()
     finally:
         db.close()
+
+
+@router.callback_query(F.data.startswith("admin_create_item_cat_"))
+async def create_item_for_category(callback: CallbackQuery, state: FSMContext):
+    """Создание позиции напрямую в категории (без подкатегории)"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    category_id = int(callback.data.split("_")[4])
+    
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="📝 Строковый товар", callback_data=f"admin_item_type_string_cat_{category_id}"))
+    builder.add(InlineKeyboardButton(text="📁 Файловый товар", callback_data=f"admin_item_type_file_cat_{category_id}"))
+    builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_create_item"))
+    
+    await callback.message.answer("Выберите тип товара:", reply_markup=builder.as_markup())
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("admin_create_item_subcat_"))
@@ -947,8 +975,8 @@ async def create_item_for_subcategory(callback: CallbackQuery, state: FSMContext
     subcategory_id = int(callback.data.split("_")[4])
     
     builder = InlineKeyboardBuilder()
-    builder.add(InlineKeyboardButton(text="📝 Строковый товар", callback_data=f"admin_item_type_string_{subcategory_id}"))
-    builder.add(InlineKeyboardButton(text="📁 Файловый товар", callback_data=f"admin_item_type_file_{subcategory_id}"))
+    builder.add(InlineKeyboardButton(text="📝 Строковый товар", callback_data=f"admin_item_type_string_sub_{subcategory_id}"))
+    builder.add(InlineKeyboardButton(text="📁 Файловый товар", callback_data=f"admin_item_type_file_sub_{subcategory_id}"))
     builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_create_item"))
     
     await callback.message.answer("Выберите тип товара:", reply_markup=builder.as_markup())
@@ -964,10 +992,14 @@ async def set_item_type(callback: CallbackQuery, state: FSMContext):
     
     parts = callback.data.split("_")
     product_type = parts[3]  # string или file
-    subcategory_id = int(parts[4])
+    target_type = parts[4]   # cat или sub
+    target_id = int(parts[5])
     
     await state.set_state(AdminStates.creating_item)
-    await state.update_data(subcategory_id=subcategory_id, product_type=product_type)
+    if target_type == "cat":
+        await state.update_data(category_id=target_id, subcategory_id=None, product_type=product_type)
+    else:
+        await state.update_data(subcategory_id=target_id, category_id=None, product_type=product_type)
     await callback.message.answer(f"Введите название позиции (тип: {product_type}):")
     await callback.answer()
 
@@ -1050,10 +1082,16 @@ async def save_item_with_photo(message: Message, state: FSMContext):
         
         db = next(get_db())
         try:
-            max_pos = db.query(Item).filter(Item.subcategory_id == subcategory_id).count()
+            category_id = data.get("category_id")
+            
+            if subcategory_id:
+                max_pos = db.query(Item).filter(Item.subcategory_id == subcategory_id).count()
+            else:
+                max_pos = db.query(Item).filter(Item.category_id == category_id, Item.subcategory_id == None).count()
             
             item = Item(
                 subcategory_id=subcategory_id,
+                category_id=category_id,
                 name=item_name,
                 description=description,
                 price=price,
@@ -1116,21 +1154,26 @@ async def save_item_description(message: Message, state: FSMContext):
         
         # Создание новой позиции
         subcategory_id = data.get("subcategory_id")
+        category_id = data.get("category_id")
         product_type = data.get("product_type")
         item_name = data.get("item_name")
         price = data.get("item_price")
         
         # Проверка наличия всех необходимых данных
-        if not subcategory_id or not product_type or not item_name or price is None:
+        if (not subcategory_id and not category_id) or not product_type or not item_name or price is None:
             await message.answer("❌ Ошибка: не все данные сохранены. Начните создание позиции заново.")
             await state.clear()
             db.close()
             return
         
-        max_pos = db.query(Item).filter(Item.subcategory_id == subcategory_id).count()
+        if subcategory_id:
+            max_pos = db.query(Item).filter(Item.subcategory_id == subcategory_id).count()
+        else:
+            max_pos = db.query(Item).filter(Item.category_id == category_id, Item.subcategory_id == None).count()
         
         item = Item(
             subcategory_id=subcategory_id,
+            category_id=category_id,
             name=item_name,
             description=description,
             price=price,

@@ -214,7 +214,8 @@ async def show_subcategories(callback: CallbackQuery):
         except Exception:
             pass
         
-        keyboard = kb.get_subcategories_keyboard(db, category_id)
+        hide_out_of_stock = utils.get_setting(db, "hide_out_of_stock", False)
+        keyboard = kb.get_subcategories_keyboard(db, category_id, hide_out_of_stock)
         text = f"📂 {category.name}\n\n{category.description or ''}"
         
         if category.photo:
@@ -296,6 +297,8 @@ async def show_item(callback: CallbackQuery):
             category_full = f"{item.subcategory.category.name} -> {item.subcategory.name}"
         elif item.subcategory:
             category_full = item.subcategory.name
+        elif item.category:
+            category_full = item.category.name
         else:
             category_full = "Без категории"
         
@@ -323,10 +326,13 @@ async def show_item(callback: CallbackQuery):
         keyboard = kb.get_item_keyboard(db, item_id, user.balance if user else 0)
         
         if keyboard is None:
-            # Получаем subcategory_id из item
-            subcategory_id = item.subcategory_id
+            # Кнопка назад - в подкатегорию или категорию
+            if item.subcategory_id:
+                back_callback = f"back_to_subcategory_{item.subcategory_id}"
+            else:
+                back_callback = f"category_{item.category_id}"
             keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="◀️ Назад", callback_data=f"back_to_subcategory_{subcategory_id}")
+                InlineKeyboardButton(text="◀️ Назад", callback_data=back_callback)
             ]])
         
         if item.photo:
@@ -358,6 +364,8 @@ async def show_item_info(callback: CallbackQuery):
             category_full = f"{item.subcategory.category.name} -> {item.subcategory.name}"
         elif item.subcategory:
             category_full = item.subcategory.name
+        elif item.category:
+            category_full = item.category.name
         else:
             category_full = "Без категории"
         
@@ -372,10 +380,13 @@ async def show_item_info(callback: CallbackQuery):
             f"❌ Товар временно недоступен"
         )
         
-        # Получаем subcategory_id из item
-        subcategory_id = item.subcategory_id
+        # Кнопка назад - в подкатегорию или категорию
+        if item.subcategory_id:
+            back_callback = f"back_to_subcategory_{item.subcategory_id}"
+        else:
+            back_callback = f"category_{item.category_id}"
         keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="◀️ Назад", callback_data=f"back_to_subcategory_{subcategory_id}")
+            InlineKeyboardButton(text="◀️ Назад", callback_data=back_callback)
         ]])
         
         if item.photo:
