@@ -162,13 +162,13 @@ def get_item_keyboard(db: Session, item_id: int, user_balance: float) -> InlineK
     
     if available_count > 0:
         if item.product_type == 'string':
-            # Для строковых товаров - выбор количества
+            # Для строковых товаров - выбор количества: 1, 3, 5 и своё
             builder.add(InlineKeyboardButton(text="1 шт", callback_data=f"buy_{item_id}_1"))
+            if available_count >= 3:
+                builder.add(InlineKeyboardButton(text="3 шт", callback_data=f"buy_{item_id}_3"))
             if available_count >= 5:
                 builder.add(InlineKeyboardButton(text="5 шт", callback_data=f"buy_{item_id}_5"))
-            if available_count >= 10:
-                builder.add(InlineKeyboardButton(text="10 шт", callback_data=f"buy_{item_id}_10"))
-            builder.add(InlineKeyboardButton(text="Другое", callback_data=f"buy_custom_{item_id}"))
+            builder.add(InlineKeyboardButton(text="Своё кол-во", callback_data=f"buy_custom_{item_id}"))
         else:
             # Для файловых товаров - одна кнопка
             builder.add(InlineKeyboardButton(text="Купить", callback_data=f"buy_{item_id}_1"))
