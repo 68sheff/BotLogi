@@ -391,15 +391,10 @@ async def show_item_info(callback: CallbackQuery):
         db.close()
 
 
-@router.callback_query(F.data.startswith("buy_"))
+@router.callback_query(F.data.regexp(r"^buy_\d+_\d+$"))
 async def process_purchase(callback: CallbackQuery, state: FSMContext):
     """Обработка покупки"""
     parts = callback.data.split("_")
-    
-    # Пропускаем buy_custom_ - это обрабатывается отдельным хендлером
-    if len(parts) >= 2 and parts[1] == "custom":
-        return
-    
     item_id = int(parts[1])
     quantity = int(parts[2]) if len(parts) > 2 else 1
     
