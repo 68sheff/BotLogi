@@ -45,8 +45,12 @@ class AdminStates(StatesGroup):
     creating_category = State()
     editing_category_name = State()
     editing_category_description = State()
+    editing_category_photo = State()
+    editing_category_desc = State()
     creating_subcategory = State()
     editing_subcategory_name = State()
+    editing_subcategory_photo = State()
+    editing_subcategory_desc = State()
     creating_item = State()
     editing_item_name = State()
     editing_item_price = State()
@@ -2462,6 +2466,345 @@ async def save_channel_id(message: Message, state: FSMContext):
         await state.clear()
 
 
+# ========== РЕДАКТИРОВАНИЕ КАТЕГОРИЙ/ПОДКАТЕГОРИЙ ==========
+
+@router.callback_query(F.data == "admin_edit_category")
+async def edit_category_menu(callback: CallbackQuery):
+    """Меню редактирования категории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    db = next(get_db())
+    try:
+        categories = db.query(Category).order_by(Category.position).all()
+        if not categories:
+            await callback.message.answer("Нет категорий для редактирования")
+            await callback.answer()
+            return
+        
+        builder = InlineKeyboardBuilder()
+        for category in categories:
+            builder.add(InlineKeyboardButton(
+                text=category.name,
+                callback_data=f"admin_edit_cat_{category.id}"
+            ))
+        
+        builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_catalog"))
+        builder.adjust(1)
+        
+        await callback.message.answer("Выберите категорию для редактирования:", reply_markup=builder.as_markup())
+        await callback.answer()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_edit_cat_"))
+async def edit_category_options(callback: CallbackQuery):
+    """Опции редактирования категории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    category_id = int(callback.data.split("_")[3])
+    db = next(get_db())
+    try:
+        category = db.query(Category).filter(Category.id == category_id).first()
+        if not category:
+            await callback.answer("Категория не найдена")
+            return
+        
+        builder = InlineKeyboardBuilder()
+        builder.add(InlineKeyboardButton(text="✏️ Изменить название", callback_data=f"admin_edit_cat_name_{category_id}"))
+        builder.add(InlineKeyboardButton(text="🖼 Изменить фото", callback_data=f"admin_edit_cat_photo_{category_id}"))
+        builder.add(InlineKeyboardButton(text="📝 Изменить описание", callback_data=f"admin_edit_cat_desc_{category_id}"))
+        builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_edit_category"))
+        builder.adjust(1)
+        
+        text = f"📁 Категория: {category.name}\n"
+        if category.description:
+            text += f"Описание: {category.description[:100]}...\n" if len(category.description) > 100 else f"Описание: {category.description}\n"
+        
+        await callback.message.answer(text, reply_markup=builder.as_markup())
+        await callback.answer()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_edit_cat_name_"))
+async def edit_category_name_start(callback: CallbackQuery, state: FSMContext):
+    """Начало редактирования названия категории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    category_id = int(callback.data.split("_")[4])
+    await state.set_state(AdminStates.editing_category_name)
+    await state.update_data(category_id=category_id)
+    await callback.message.answer("Введите новое название категории:")
+    await callback.answer()
+
+
+@router.message(AdminStates.editing_category_name)
+async def edit_category_name_save(message: Message, state: FSMContext):
+    """Сохранение нового названия категории"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    data = await state.get_data()
+    category_id = data.get("category_id")
+    
+    db = next(get_db())
+    try:
+        category = db.query(Category).filter(Category.id == category_id).first()
+        if category:
+            category.name = message.text.strip()
+            db.commit()
+            await message.answer(f"✅ Название категории изменено на '{category.name}'")
+        await state.clear()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_edit_cat_photo_"))
+async def edit_category_photo_start(callback: CallbackQuery, state: FSMContext):
+    """Начало редактирования фото категории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    category_id = int(callback.data.split("_")[4])
+    await state.set_state(AdminStates.editing_category_photo)
+    await state.update_data(category_id=category_id)
+    await callback.message.answer("Отправьте новое фото для категории:")
+    await callback.answer()
+
+
+@router.message(AdminStates.editing_category_photo, F.photo)
+async def edit_category_photo_save(message: Message, state: FSMContext):
+    """Сохранение нового фото категории"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    data = await state.get_data()
+    category_id = data.get("category_id")
+    
+    db = next(get_db())
+    try:
+        category = db.query(Category).filter(Category.id == category_id).first()
+        if category:
+            category.photo = message.photo[-1].file_id
+            db.commit()
+            await message.answer("✅ Фото категории обновлено!")
+        await state.clear()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_edit_cat_desc_"))
+async def edit_category_desc_start(callback: CallbackQuery, state: FSMContext):
+    """Начало редактирования описания категории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    category_id = int(callback.data.split("_")[4])
+    await state.set_state(AdminStates.editing_category_desc)
+    await state.update_data(category_id=category_id)
+    await callback.message.answer("Введите новое описание категории:")
+    await callback.answer()
+
+
+@router.message(AdminStates.editing_category_desc)
+async def edit_category_desc_save(message: Message, state: FSMContext):
+    """Сохранение нового описания категории"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    data = await state.get_data()
+    category_id = data.get("category_id")
+    
+    db = next(get_db())
+    try:
+        category = db.query(Category).filter(Category.id == category_id).first()
+        if category:
+            category.description = message.text.strip()
+            db.commit()
+            await message.answer("✅ Описание категории обновлено!")
+        await state.clear()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data == "admin_edit_subcategory")
+async def edit_subcategory_menu(callback: CallbackQuery):
+    """Меню редактирования подкатегории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    db = next(get_db())
+    try:
+        subcategories = db.query(Subcategory).all()
+        if not subcategories:
+            await callback.message.answer("Нет подкатегорий для редактирования")
+            await callback.answer()
+            return
+        
+        builder = InlineKeyboardBuilder()
+        for subcategory in subcategories:
+            category = subcategory.category
+            builder.add(InlineKeyboardButton(
+                text=f"{category.name} > {subcategory.name}",
+                callback_data=f"admin_edit_subcat_{subcategory.id}"
+            ))
+        
+        builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_catalog"))
+        builder.adjust(1)
+        
+        await callback.message.answer("Выберите подкатегорию для редактирования:", reply_markup=builder.as_markup())
+        await callback.answer()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_edit_subcat_"))
+async def edit_subcategory_options(callback: CallbackQuery):
+    """Опции редактирования подкатегории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    subcategory_id = int(callback.data.split("_")[3])
+    db = next(get_db())
+    try:
+        subcategory = db.query(Subcategory).filter(Subcategory.id == subcategory_id).first()
+        if not subcategory:
+            await callback.answer("Подкатегория не найдена")
+            return
+        
+        builder = InlineKeyboardBuilder()
+        builder.add(InlineKeyboardButton(text="✏️ Изменить название", callback_data=f"admin_edit_subcat_name_{subcategory_id}"))
+        builder.add(InlineKeyboardButton(text="🖼 Изменить фото", callback_data=f"admin_edit_subcat_photo_{subcategory_id}"))
+        builder.add(InlineKeyboardButton(text="📝 Изменить описание", callback_data=f"admin_edit_subcat_desc_{subcategory_id}"))
+        builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_edit_subcategory"))
+        builder.adjust(1)
+        
+        text = f"📂 Подкатегория: {subcategory.name}\n"
+        if subcategory.description:
+            text += f"Описание: {subcategory.description[:100]}...\n" if len(subcategory.description) > 100 else f"Описание: {subcategory.description}\n"
+        
+        await callback.message.answer(text, reply_markup=builder.as_markup())
+        await callback.answer()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_edit_subcat_name_"))
+async def edit_subcategory_name_start(callback: CallbackQuery, state: FSMContext):
+    """Начало редактирования названия подкатегории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    subcategory_id = int(callback.data.split("_")[4])
+    await state.set_state(AdminStates.editing_subcategory_name)
+    await state.update_data(subcategory_id=subcategory_id)
+    await callback.message.answer("Введите новое название подкатегории:")
+    await callback.answer()
+
+
+@router.message(AdminStates.editing_subcategory_name)
+async def edit_subcategory_name_save(message: Message, state: FSMContext):
+    """Сохранение нового названия подкатегории"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    data = await state.get_data()
+    subcategory_id = data.get("subcategory_id")
+    
+    db = next(get_db())
+    try:
+        subcategory = db.query(Subcategory).filter(Subcategory.id == subcategory_id).first()
+        if subcategory:
+            subcategory.name = message.text.strip()
+            db.commit()
+            await message.answer(f"✅ Название подкатегории изменено на '{subcategory.name}'")
+        await state.clear()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_edit_subcat_photo_"))
+async def edit_subcategory_photo_start(callback: CallbackQuery, state: FSMContext):
+    """Начало редактирования фото подкатегории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    subcategory_id = int(callback.data.split("_")[4])
+    await state.set_state(AdminStates.editing_subcategory_photo)
+    await state.update_data(subcategory_id=subcategory_id)
+    await callback.message.answer("Отправьте новое фото для подкатегории:")
+    await callback.answer()
+
+
+@router.message(AdminStates.editing_subcategory_photo, F.photo)
+async def edit_subcategory_photo_save(message: Message, state: FSMContext):
+    """Сохранение нового фото подкатегории"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    data = await state.get_data()
+    subcategory_id = data.get("subcategory_id")
+    
+    db = next(get_db())
+    try:
+        subcategory = db.query(Subcategory).filter(Subcategory.id == subcategory_id).first()
+        if subcategory:
+            subcategory.photo = message.photo[-1].file_id
+            db.commit()
+            await message.answer("✅ Фото подкатегории обновлено!")
+        await state.clear()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_edit_subcat_desc_"))
+async def edit_subcategory_desc_start(callback: CallbackQuery, state: FSMContext):
+    """Начало редактирования описания подкатегории"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    subcategory_id = int(callback.data.split("_")[4])
+    await state.set_state(AdminStates.editing_subcategory_desc)
+    await state.update_data(subcategory_id=subcategory_id)
+    await callback.message.answer("Введите новое описание подкатегории:")
+    await callback.answer()
+
+
+@router.message(AdminStates.editing_subcategory_desc)
+async def edit_subcategory_desc_save(message: Message, state: FSMContext):
+    """Сохранение нового описания подкатегории"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    data = await state.get_data()
+    subcategory_id = data.get("subcategory_id")
+    
+    db = next(get_db())
+    try:
+        subcategory = db.query(Subcategory).filter(Subcategory.id == subcategory_id).first()
+        if subcategory:
+            subcategory.description = message.text.strip()
+            db.commit()
+            await message.answer("✅ Описание подкатегории обновлено!")
+        await state.clear()
+    finally:
+        db.close()
+
+
 # ========== УДАЛЕНИЕ КАТЕГОРИЙ/ПОДКАТЕГОРИЙ/ПОЗИЦИЙ ==========
 
 @router.callback_query(F.data == "admin_delete_category")
@@ -2765,6 +3108,9 @@ async def execute_delete_item(callback: CallbackQuery):
             return
         
         item_name = item.name
+        
+        # Удаляем покупки связанные с позицией
+        db.query(Purchase).filter(Purchase.item_id == item_id).delete()
         
         # Удаляем товары
         db.query(Product).filter(Product.item_id == item_id).delete()
