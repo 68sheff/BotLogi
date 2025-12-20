@@ -2538,7 +2538,7 @@ async def edit_category_name_start(callback: CallbackQuery, state: FSMContext):
         await callback.answer("Доступ запрещен")
         return
     
-    category_id = int(callback.data.split("_")[1])
+    category_id = int(callback.data.split("_")[2])
     await state.set_state(AdminStates.editing_category_name)
     await state.update_data(category_id=category_id)
     await callback.message.answer("Введите новое название категории:")
@@ -2573,7 +2573,7 @@ async def edit_category_photo_start(callback: CallbackQuery, state: FSMContext):
         await callback.answer("Доступ запрещен")
         return
     
-    category_id = int(callback.data.split("_")[1])
+    category_id = int(callback.data.split("_")[2])
     await state.set_state(AdminStates.editing_category_photo)
     await state.update_data(category_id=category_id)
     await callback.message.answer("Отправьте новое фото для категории:")
@@ -2608,7 +2608,7 @@ async def edit_category_desc_start(callback: CallbackQuery, state: FSMContext):
         await callback.answer("Доступ запрещен")
         return
     
-    category_id = int(callback.data.split("_")[1])
+    category_id = int(callback.data.split("_")[2])
     await state.set_state(AdminStates.editing_category_desc)
     await state.update_data(category_id=category_id)
     await callback.message.answer("Введите новое описание категории:")
@@ -2707,7 +2707,7 @@ async def edit_subcategory_name_start(callback: CallbackQuery, state: FSMContext
         await callback.answer("Доступ запрещен")
         return
     
-    subcategory_id = int(callback.data.split("_")[1])
+    subcategory_id = int(callback.data.split("_")[2])
     await state.set_state(AdminStates.editing_subcategory_name)
     await state.update_data(subcategory_id=subcategory_id)
     await callback.message.answer("Введите новое название подкатегории:")
@@ -2742,7 +2742,7 @@ async def edit_subcategory_photo_start(callback: CallbackQuery, state: FSMContex
         await callback.answer("Доступ запрещен")
         return
     
-    subcategory_id = int(callback.data.split("_")[1])
+    subcategory_id = int(callback.data.split("_")[2])
     await state.set_state(AdminStates.editing_subcategory_photo)
     await state.update_data(subcategory_id=subcategory_id)
     await callback.message.answer("Отправьте новое фото для подкатегории:")
@@ -2777,7 +2777,7 @@ async def edit_subcategory_desc_start(callback: CallbackQuery, state: FSMContext
         await callback.answer("Доступ запрещен")
         return
     
-    subcategory_id = int(callback.data.split("_")[1])
+    subcategory_id = int(callback.data.split("_")[2])
     await state.set_state(AdminStates.editing_subcategory_desc)
     await state.update_data(subcategory_id=subcategory_id)
     await callback.message.answer("Введите новое описание подкатегории:")
