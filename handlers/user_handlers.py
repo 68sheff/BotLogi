@@ -495,7 +495,7 @@ async def process_purchase(callback: CallbackQuery, state: FSMContext):
         await utils.send_admin_notification(
             callback.bot,
             "new_purchase",
-            f"Новая покупка!\nТовар: {item.name}\nСумма: {total_price} USDT",
+            f"Новая покупка!\nТовар: {item.name}\nКол-во: {quantity} шт.\nСумма: {total_price} USDT",
             user_id=user.user_id,
             username=user.username
         )
@@ -625,7 +625,7 @@ async def process_custom_quantity(message: Message, state: FSMContext):
             await utils.send_admin_notification(
                 message.bot,
                 "new_purchase",
-                f"Новая покупка!\nТовар: {item.name}\nСумма: {total_price} USDT",
+                f"Новая покупка!\nТовар: {item.name}\nКол-во: {quantity} шт.\nСумма: {total_price} USDT",
                 user_id=user.user_id,
                 username=user.username
             )

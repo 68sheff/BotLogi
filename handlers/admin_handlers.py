@@ -1748,7 +1748,7 @@ async def search_user(message: Message, state: FSMContext):
             await state.clear()
             return
         
-        text = utils.format_user_info(user)
+        text = utils.format_user_info(user, db)
         
         builder = InlineKeyboardBuilder()
         builder.add(InlineKeyboardButton(text="💰 Изменить баланс", callback_data=f"admin_edit_balance_{user.id}"))

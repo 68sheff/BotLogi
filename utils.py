@@ -157,16 +157,31 @@ def get_bot_response_with_media(db: Session, key: str, default: str = ""):
     return (default, None)
 
 
-def format_user_info(user: User) -> str:
+def format_user_info(user: User, db: Session = None) -> str:
     """Форматирование информации о пользователе"""
-    return f"""👤 Профиль
+    from database import Purchase
+    
+    total_items = 0
+    if db:
+        # Считаем общее количество купленных товаров
+        purchases = db.query(Purchase).filter(Purchase.user_id == user.id).all()
+        total_items = sum(p.quantity for p in purchases)
+    
+    base_info = f"""👤 Профиль
 
 🆔 ID: {user.user_id}
 👤 Ник: @{user.username or 'не указан'}
 💰 Баланс: {user.balance:.2f} USDT
-💳 Всего пополнено: {user.total_deposits:.2f} USDT
+💳 Всего пополнено: {user.total_deposits:.2f} USDT"""
+    
+    if db:
+        base_info += f"\n🛒 Куплено товаров: {total_items} шт."
+    
+    base_info += f"""
 📅 Регистрация: {user.created_at.strftime('%d.%m.%Y %H:%M')}
 {'🚫 Заблокирован' if user.is_blocked else '✅ Активен'}"""
+    
+    return base_info
 
 
 def format_statistics(db: Session) -> str:
