@@ -66,6 +66,10 @@ class AdminStates(StatesGroup):
     setting_block_type = State()
     setting_block_reason = State()
     
+    # Заказы
+    searching_order = State()
+    refund_amount = State()
+    
     # Рассылка
     broadcasting = State()
     
@@ -1501,6 +1505,96 @@ async def show_upload_menu(callback: CallbackQuery):
         db.close()
 
 
+@router.callback_query(F.data == "admin_stock")
+async def show_stock(callback: CallbackQuery):
+    """Показать наличие товаров"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    db = next(get_db())
+    try:
+        # Получаем все товары с наличием > 0, сортируем по категории, подкатегории, названию
+        items = db.query(Item).filter(Item.is_visible == True).all()
+        
+        # Фильтруем только те, у которых есть товары в наличии
+        items_with_stock = []
+        for item in items:
+            available_count = db.query(Product).filter(
+                Product.item_id == item.id,
+                Product.is_sold == False
+            ).count()
+            if available_count > 0:
+                items_with_stock.append((item, available_count))
+        
+        if not items_with_stock:
+            await callback.message.answer("📦 Нет товаров в наличии")
+            await callback.answer()
+            return
+        
+        # Сортируем по категории -> подкатегории -> названию
+        def sort_key(item_tuple):
+            item, _ = item_tuple
+            cat_name = ""
+            subcat_name = ""
+            if item.subcategory:
+                cat_name = item.subcategory.category.name if item.subcategory.category else ""
+                subcat_name = item.subcategory.name
+            elif item.category:
+                cat_name = item.category.name
+            return (cat_name, subcat_name, item.name)
+        
+        items_with_stock.sort(key=sort_key)
+        
+        # Формируем текст
+        lines = ["📦 Наличие товаров:\n"]
+        for i, (item, count) in enumerate(items_with_stock, 1):
+            if item.subcategory:
+                cat_name = item.subcategory.category.name if item.subcategory.category else ""
+                path = f"{cat_name} -> {item.subcategory.name} -> {item.name}"
+            elif item.category:
+                path = f"{item.category.name} -> {item.name}"
+            else:
+                path = item.name
+            
+            lines.append(f"{i}. {path}\nЦена: {item.price:.2f} USDT\nКол-во: {count} шт.\n")
+        
+        text = "\n".join(lines)
+        
+        # Разбиваем на части если текст слишком длинный
+        if len(text) > 4000:
+            parts = []
+            current_part = "📦 Наличие товаров:\n\n"
+            for i, (item, count) in enumerate(items_with_stock, 1):
+                if item.subcategory:
+                    cat_name = item.subcategory.category.name if item.subcategory.category else ""
+                    path = f"{cat_name} -> {item.subcategory.name} -> {item.name}"
+                elif item.category:
+                    path = f"{item.category.name} -> {item.name}"
+                else:
+                    path = item.name
+                
+                line = f"{i}. {path}\nЦена: {item.price:.2f} USDT\nКол-во: {count} шт.\n\n"
+                
+                if len(current_part) + len(line) > 4000:
+                    parts.append(current_part)
+                    current_part = line
+                else:
+                    current_part += line
+            
+            if current_part:
+                parts.append(current_part)
+            
+            for part in parts:
+                await callback.message.answer(part)
+        else:
+            await callback.message.answer(text)
+        
+        await callback.answer()
+    finally:
+        db.close()
+
+
 @router.callback_query(F.data.startswith("admin_upload_item_"))
 async def upload_item_products(callback: CallbackQuery, state: FSMContext):
     """Загрузка товаров для позиции"""
@@ -1960,6 +2054,150 @@ async def save_block_reason(message: Message, state: FSMContext):
             await state.clear()
         else:
             await message.answer("❌ Пользователь не найден")
+    finally:
+        db.close()
+
+
+# ========== ПОИСК ЗАКАЗОВ ==========
+
+@router.callback_query(F.data == "admin_search_order")
+async def search_order_start(callback: CallbackQuery, state: FSMContext):
+    """Начало поиска заказа"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    await state.set_state(AdminStates.searching_order)
+    await callback.message.answer("Введите ID заказа (число):")
+    await callback.answer()
+
+
+@router.message(AdminStates.searching_order)
+async def search_order_process(message: Message, state: FSMContext):
+    """Обработка поиска заказа"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    try:
+        order_id = int(message.text.strip())
+    except ValueError:
+        await message.answer("❌ ID заказа должен быть числом")
+        return
+    
+    db = next(get_db())
+    try:
+        purchase = db.query(Purchase).filter(Purchase.id == order_id).first()
+        if not purchase:
+            await message.answer("❌ Заказ не найден")
+            await state.clear()
+            return
+        
+        user = purchase.user
+        item = purchase.item
+        
+        # Формируем информацию о заказе
+        if item:
+            if item.subcategory:
+                item_path = f"{item.subcategory.name} > {item.name}"
+            elif item.category:
+                item_path = f"{item.category.name} > {item.name}"
+            else:
+                item_path = item.name
+        else:
+            item_path = "Товар удалён"
+        
+        text = (
+            f"📦 Заказ #{purchase.id}\n\n"
+            f"👤 Покупатель: @{user.username or 'нет'} (ID: {user.user_id})\n"
+            f"🛒 Товар: {item_path}\n"
+            f"📊 Кол-во: {purchase.quantity} шт.\n"
+            f"💰 Сумма: {purchase.total_price:.2f} USDT\n"
+            f"📅 Дата: {purchase.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            f"💳 Баланс покупателя: {user.balance:.2f} USDT"
+        )
+        
+        builder = InlineKeyboardBuilder()
+        builder.add(InlineKeyboardButton(
+            text="💰 Выдать баланс (возврат)",
+            callback_data=f"admin_refund_{purchase.id}"
+        ))
+        builder.add(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_panel"))
+        builder.adjust(1)
+        
+        await message.answer(text, reply_markup=builder.as_markup())
+        await state.clear()
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data.startswith("admin_refund_"))
+async def refund_start(callback: CallbackQuery, state: FSMContext):
+    """Начало возврата баланса"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Доступ запрещен")
+        return
+    
+    purchase_id = int(callback.data.split("_")[2])
+    await state.set_state(AdminStates.refund_amount)
+    await state.update_data(purchase_id=purchase_id)
+    
+    db = next(get_db())
+    try:
+        purchase = db.query(Purchase).filter(Purchase.id == purchase_id).first()
+        if purchase:
+            await callback.message.answer(
+                f"Введите сумму для возврата (сумма заказа: {purchase.total_price:.2f} USDT):"
+            )
+    finally:
+        db.close()
+    await callback.answer()
+
+
+@router.message(AdminStates.refund_amount)
+async def refund_process(message: Message, state: FSMContext):
+    """Обработка возврата"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    try:
+        amount = float(message.text.strip().replace(",", "."))
+        if amount <= 0:
+            await message.answer("❌ Сумма должна быть больше 0")
+            return
+    except ValueError:
+        await message.answer("❌ Введите корректную сумму")
+        return
+    
+    data = await state.get_data()
+    purchase_id = data.get("purchase_id")
+    
+    db = next(get_db())
+    try:
+        purchase = db.query(Purchase).filter(Purchase.id == purchase_id).first()
+        if not purchase:
+            await message.answer("❌ Заказ не найден")
+            await state.clear()
+            return
+        
+        user = purchase.user
+        user.balance += amount
+        db.commit()
+        
+        utils.log_action(db, "admin_action", admin_id=message.from_user.id, data={
+            "action": "refund",
+            "purchase_id": purchase_id,
+            "user_id": user.user_id,
+            "amount": amount
+        })
+        
+        await message.answer(
+            f"✅ Возврат выполнен!\n\n"
+            f"Заказ: #{purchase_id}\n"
+            f"Пользователь: @{user.username or 'нет'} (ID: {user.user_id})\n"
+            f"Сумма возврата: {amount:.2f} USDT\n"
+            f"Новый баланс: {user.balance:.2f} USDT"
+        )
+        await state.clear()
     finally:
         db.close()
 

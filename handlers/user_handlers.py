@@ -500,28 +500,43 @@ async def process_purchase(callback: CallbackQuery, state: FSMContext):
         await utils.send_admin_notification(
             callback.bot,
             "new_purchase",
-            f"Новая покупка!\nТовар: {item.name}\nКол-во: {quantity} шт.\nСумма: {total_price} USDT",
+            f"Новая покупка!\nID заказа: {purchase.id}\nТовар: {item.name}\nКол-во: {quantity} шт.\nСумма: {total_price} USDT",
             user_id=user.user_id,
             username=user.username
         )
         
-        # Выдача товара
-        success_text = utils.get_bot_response(db, "purchase_success", config.TEXTS["purchase_success"])
-        await callback.message.answer(success_text)
+        # Формируем ID заказа: подкатегория-товар
+        if item.subcategory:
+            order_id = f"{item.subcategory.name}-{item.name}"
+        elif item.category:
+            order_id = f"{item.category.name}-{item.name}"
+        else:
+            order_id = f"{item.name}"
         
+        # Выдача товара
         try:
             if item.product_type == 'string':
                 # Выдача строк
                 products_text = "\n".join([p.content for p in available_products])
-                await callback.message.answer(f"📦 Ваш товар:\n\n{products_text}")
+                await callback.message.answer(
+                    f"✅ Спасибо за покупку!\n\n"
+                    f"🆔 ID заказа: {purchase.id}\n"
+                    f"📋 {order_id}\n\n"
+                    f"📦 Ваш товар:\n\n{products_text}"
+                )
             else:
                 # Выдача файла
+                await callback.message.answer(
+                    f"✅ Спасибо за покупку!\n\n"
+                    f"🆔 ID заказа: {purchase.id}\n"
+                    f"📋 {order_id}\n\n"
+                    f"📦 Ваш товар:"
+                )
                 product = available_products[0]
                 if product.file_id:
                     try:
                         await callback.message.answer_document(product.file_id)
                     except:
-                        # Если file_id не работает, пробуем файл
                         if product.file_path and os.path.exists(product.file_path):
                             file = FSInputFile(product.file_path)
                             await callback.message.answer_document(file)
@@ -645,18 +660,28 @@ async def process_custom_quantity(message: Message, state: FSMContext):
             await utils.send_admin_notification(
                 message.bot,
                 "new_purchase",
-                f"Новая покупка!\nТовар: {item.name}\nКол-во: {quantity} шт.\nСумма: {total_price} USDT",
+                f"Новая покупка!\nID заказа: {purchase.id}\nТовар: {item.name}\nКол-во: {quantity} шт.\nСумма: {total_price} USDT",
                 user_id=user.user_id,
                 username=user.username
             )
             
-            # Выдача товара
-            success_text = utils.get_bot_response(db, "purchase_success", config.TEXTS["purchase_success"])
-            await message.answer(success_text)
+            # Формируем ID заказа: подкатегория-товар
+            if item.subcategory:
+                order_id = f"{item.subcategory.name}-{item.name}"
+            elif item.category:
+                order_id = f"{item.category.name}-{item.name}"
+            else:
+                order_id = f"{item.name}"
             
+            # Выдача товара
             try:
                 products_text = "\n".join([p.content for p in available_products])
-                await message.answer(f"📦 Ваш товар:\n\n{products_text}")
+                await message.answer(
+                    f"✅ Спасибо за покупку!\n\n"
+                    f"🆔 ID заказа: {purchase.id}\n"
+                    f"📋 {order_id}\n\n"
+                    f"📦 Ваш товар:\n\n{products_text}"
+                )
             except Exception as e:
                 pass
             

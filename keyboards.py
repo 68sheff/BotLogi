@@ -43,7 +43,9 @@ def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
         ("🔘 Кнопки", "admin_buttons"),
         ("📦 Ассортимент", "admin_catalog"),
         ("📤 Загрузка товаров", "admin_upload"),
+        ("📦 Наличие товаров", "admin_stock"),
         ("👥 Пользователи", "admin_users"),
+        ("🔍 Поиск заказа", "admin_search_order"),
         ("📢 Рассылка", "admin_broadcast"),
         ("📢 Канал", "admin_channel"),
         ("🔧 Тех. работы", "admin_maintenance"),
@@ -81,21 +83,21 @@ def get_subcategories_keyboard(db: Session, category_id: int, hide_out_of_stock:
     subcategories = db.query(Subcategory).filter(
         Subcategory.category_id == category_id,
         Subcategory.is_visible == True
-    ).order_by(Subcategory.position).all()
+    ).order_by(Subcategory.name).all()  # Сортировка по названию
     
     # Позиции напрямую в категории (без подкатегории)
     direct_items = db.query(Item).filter(
         Item.category_id == category_id,
         Item.subcategory_id == None,
         Item.is_visible == True
-    ).order_by(Item.position).all()
+    ).order_by(Item.name).all()  # Сортировка по названию
     
     builder = InlineKeyboardBuilder()
     
-    # Сначала подкатегории
+    # Сначала подкатегории (без эмодзи)
     for subcategory in subcategories:
         builder.add(InlineKeyboardButton(
-            text=f"📁 {subcategory.name}",
+            text=subcategory.name,
             callback_data=f"subcategory_{subcategory.id}"
         ))
     
