@@ -1479,8 +1479,16 @@ async def show_upload_menu(callback: CallbackQuery):
         
         builder = InlineKeyboardBuilder()
         for item in items:
+            # Определяем родительскую категорию/подкатегорию
+            if item.subcategory:
+                parent_name = item.subcategory.name
+            elif item.category:
+                parent_name = item.category.name
+            else:
+                parent_name = "Без категории"
+            
             builder.add(InlineKeyboardButton(
-                text=f"{item.name} ({item.product_type})",
+                text=f"{parent_name} > {item.name} ({item.product_type})",
                 callback_data=f"admin_upload_item_{item.id}"
             ))
         
