@@ -43,7 +43,6 @@ def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
         ("🔘 Кнопки", "admin_buttons"),
         ("📦 Ассортимент", "admin_catalog"),
         ("📤 Загрузка товаров", "admin_upload"),
-        ("📦 Наличие товаров", "admin_stock"),
         ("👥 Пользователи", "admin_users"),
         ("🔍 Поиск заказа", "admin_search_order"),
         ("📢 Рассылка", "admin_broadcast"),

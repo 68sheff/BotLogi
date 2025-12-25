@@ -182,6 +182,89 @@ async def cmd_start(message: Message, state: FSMContext):
         db.close()
 
 
+@router.message(F.text.in_([config.BUTTONS.get("stock", "📦 Наличие"), "📦 Наличие"]))
+async def show_stock(message: Message):
+    """Показать наличие товаров"""
+    db = next(get_db())
+    try:
+        # Получаем все товары с наличием > 0
+        items = db.query(Item).filter(Item.is_visible == True).all()
+        
+        # Фильтруем только те, у которых есть товары в наличии
+        items_with_stock = []
+        for item in items:
+            available_count = db.query(Product).filter(
+                Product.item_id == item.id,
+                Product.is_sold == False
+            ).count()
+            if available_count > 0:
+                items_with_stock.append((item, available_count))
+        
+        if not items_with_stock:
+            await message.answer("📦 Нет товаров в наличии")
+            return
+        
+        # Сортируем по категории -> подкатегории -> названию
+        def sort_key(item_tuple):
+            item, _ = item_tuple
+            cat_name = ""
+            subcat_name = ""
+            if item.subcategory:
+                cat_name = item.subcategory.category.name if item.subcategory.category else ""
+                subcat_name = item.subcategory.name
+            elif item.category:
+                cat_name = item.category.name
+            return (cat_name, subcat_name, item.name)
+        
+        items_with_stock.sort(key=sort_key)
+        
+        # Формируем текст
+        lines = ["📦 Наличие товаров:\n"]
+        for i, (item, count) in enumerate(items_with_stock, 1):
+            if item.subcategory:
+                cat_name = item.subcategory.category.name if item.subcategory.category else ""
+                path = f"{cat_name} -> {item.subcategory.name} -> {item.name}"
+            elif item.category:
+                path = f"{item.category.name} -> {item.name}"
+            else:
+                path = item.name
+            
+            lines.append(f"{i}. {path}\nЦена: {item.price:.2f} USDT\nКол-во: {count} шт.\n")
+        
+        text = "\n".join(lines)
+        
+        # Разбиваем на части если текст слишком длинный
+        if len(text) > 4000:
+            parts = []
+            current_part = "📦 Наличие товаров:\n\n"
+            for i, (item, count) in enumerate(items_with_stock, 1):
+                if item.subcategory:
+                    cat_name = item.subcategory.category.name if item.subcategory.category else ""
+                    path = f"{cat_name} -> {item.subcategory.name} -> {item.name}"
+                elif item.category:
+                    path = f"{item.category.name} -> {item.name}"
+                else:
+                    path = item.name
+                
+                line = f"{i}. {path}\nЦена: {item.price:.2f} USDT\nКол-во: {count} шт.\n\n"
+                
+                if len(current_part) + len(line) > 4000:
+                    parts.append(current_part)
+                    current_part = line
+                else:
+                    current_part += line
+            
+            if current_part:
+                parts.append(current_part)
+            
+            for part in parts:
+                await message.answer(part)
+        else:
+            await message.answer(text)
+    finally:
+        db.close()
+
+
 @router.message(F.text.in_([config.BUTTONS.get("buy", "🛒 Купить"), "🛒 Купить"]))
 async def show_categories(message: Message):
     """Показать категории"""

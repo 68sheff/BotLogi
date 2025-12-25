@@ -284,6 +284,7 @@ def init_db():
             ("support", __import__("config").BUTTONS["support"], 3),
             ("balance", __import__("config").BUTTONS["balance"], 4),
             ("user_agreement", __import__("config").BUTTONS["user_agreement"], 5),
+            ("stock", __import__("config").BUTTONS["stock"], 6),
         ]
         
         for action, name, pos in default_buttons:
