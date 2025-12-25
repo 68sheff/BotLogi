@@ -411,6 +411,11 @@ async def process_purchase(callback: CallbackQuery, state: FSMContext):
     
     db = next(get_db())
     try:
+        # Проверка тех. работ
+        if utils.get_setting(db, "maintenance_mode", False):
+            await callback.answer("⚙️ Сейчас тех. работы, покупка невозможна", show_alert=True)
+            return
+        
         item = db.query(Item).filter(Item.id == item_id).first()
         if not item:
             await callback.answer("Товар не найден")
@@ -535,6 +540,15 @@ async def process_purchase(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("buy_custom_"))
 async def ask_custom_quantity(callback: CallbackQuery, state: FSMContext):
     """Запрос кастомного количества"""
+    db = next(get_db())
+    try:
+        # Проверка тех. работ
+        if utils.get_setting(db, "maintenance_mode", False):
+            await callback.answer("⚙️ Сейчас тех. работы, покупка невозможна", show_alert=True)
+            return
+    finally:
+        db.close()
+    
     item_id = int(callback.data.split("_")[2])
     await state.set_state(PurchaseStates.waiting_quantity)
     await state.update_data(item_id=item_id)
@@ -557,6 +571,12 @@ async def process_custom_quantity(message: Message, state: FSMContext):
         # Обрабатываем покупку напрямую
         db = next(get_db())
         try:
+            # Проверка тех. работ
+            if utils.get_setting(db, "maintenance_mode", False):
+                await message.answer("⚙️ Сейчас тех. работы, покупка невозможна")
+                await state.clear()
+                return
+            
             item = db.query(Item).filter(Item.id == item_id).first()
             if not item:
                 await message.answer("Товар не найден")
