@@ -31,6 +31,7 @@ class User(Base):
     is_blocked = Column(Boolean, default=False)
     block_type = Column(String(20), default='normal')  # 'normal' или 'silent'
     block_reason = Column(Text)  # Причина блокировки
+    is_subscribed = Column(Boolean, default=False)  # Подписан ли на канал
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
@@ -244,6 +245,10 @@ def init_db():
             db.execute(sql_text("ALTER TABLE users ADD COLUMN block_reason TEXT"))
             db.commit()
             print("Миграция: добавлена колонка block_reason в users")
+        if 'is_subscribed' not in columns:
+            db.execute(sql_text("ALTER TABLE users ADD COLUMN is_subscribed BOOLEAN DEFAULT 0"))
+            db.commit()
+            print("Миграция: добавлена колонка is_subscribed в users")
         
         # Миграция: добавляем колонку category_id в items если её нет
         result = db.execute(sql_text("PRAGMA table_info(items)"))

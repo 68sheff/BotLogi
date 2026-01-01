@@ -99,6 +99,15 @@ async def cmd_start(message: Message, state: FSMContext):
                 await utils.send_blocked_message(message.bot, message.chat.id, block_reason)
                 return
         
+        # Создание/получение пользователя (создаем ДО проверок, чтобы все пользователи попадали в статистику)
+        user = get_or_create_user(
+            db,
+            message.from_user.id,
+            message.from_user.username,
+            message.from_user.first_name,
+            message.from_user.last_name
+        )
+        
         # Проверка тех. работ
         if utils.get_setting(db, "maintenance_mode", False):
             maintenance_text = utils.get_setting(db, "maintenance_text", config.TEXTS["maintenance"])
@@ -106,7 +115,11 @@ async def cmd_start(message: Message, state: FSMContext):
             return
         
         # Проверка подписки
-        if not await utils.check_channel_subscription(message.bot, message.from_user.id):
+        is_subscribed = await utils.check_channel_subscription(message.bot, message.from_user.id)
+        user.is_subscribed = is_subscribed
+        db.commit()
+        
+        if not is_subscribed:
             channel_id = utils.get_setting(db, "required_channel_id", None)
             if channel_id:
                 # Создаем inline кнопки
@@ -162,15 +175,6 @@ async def cmd_start(message: Message, state: FSMContext):
             else:
                 await message.answer(config.TEXTS["no_subscription"])
             return
-        
-        # Создание/получение пользователя
-        user = get_or_create_user(
-            db,
-            message.from_user.id,
-            message.from_user.username,
-            message.from_user.first_name,
-            message.from_user.last_name
-        )
         
         start_text, start_photo = utils.get_bot_response_with_media(db, "start", config.TEXTS["start"])
         keyboard = kb.get_main_keyboard(db, message.from_user.id)
@@ -1538,8 +1542,21 @@ async def check_subscription(callback: CallbackQuery):
     """Проверка подписки на канал"""
     db = next(get_db())
     try:
+        # Создание/получение пользователя (для статистики)
+        user = get_or_create_user(
+            db,
+            callback.from_user.id,
+            callback.from_user.username,
+            callback.from_user.first_name,
+            callback.from_user.last_name
+        )
+        
         # Проверяем подписку
-        if await utils.check_channel_subscription(callback.bot, callback.from_user.id):
+        is_subscribed = await utils.check_channel_subscription(callback.bot, callback.from_user.id)
+        user.is_subscribed = is_subscribed
+        db.commit()
+        
+        if is_subscribed:
             await callback.answer("✅ Вы подписаны на канал!", show_alert=True)
             # Отправляем приветственное сообщение
             start_text, start_photo = utils.get_bot_response_with_media(db, "start", config.TEXTS["start"])

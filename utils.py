@@ -189,6 +189,7 @@ def format_statistics(db: Session) -> str:
     from database import Purchase, Payment, Product
     
     total_users = db.query(User).count()
+    subscribed_users = db.query(User).filter(User.is_subscribed == True).count()
     total_purchases = db.query(Purchase).count()
     total_payments = db.query(Payment).filter(Payment.status == 'paid').all()
     total_revenue = sum(p.amount for p in total_payments)
@@ -199,7 +200,9 @@ def format_statistics(db: Session) -> str:
     
     return f"""📊 Статистика
 
-👥 Пользователей: {total_users}
+👥 Всего пользователей: {total_users}
+✅ Подписанных: {subscribed_users}
+❌ Неподписанных: {total_users - subscribed_users}
 🛒 Покупок: {total_purchases}
 💳 Пополнений: {len(total_payments)}
 💰 Выручка: {total_revenue:.2f} USDT
